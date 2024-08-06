@@ -457,53 +457,121 @@ class CrystalNNFingerprint(BaseFeaturizer):
             for prop in self.chem_props:
                 prop_delta[prop] = 0
             sum_wt = 0
+
+        if struct.sites[idx].is_ordered:
             elem_central = struct.sites[idx].specie.symbol
             specie_central = str(struct.sites[idx].specie)
 
-        for k in range(max_cn):
-            cn = k + 1
-            wt = nndata.cn_weights.get(cn, 0)
-            if cn in self.ops:
-                for op in self.ops[cn]:
-                    if op == "wt":
-                        cn_fingerprint.append(wt)
+            for k in range(max_cn):
+                cn = k + 1
+                wt = nndata.cn_weights.get(cn, 0)
+                if cn in self.ops:
+                    for op in self.ops[cn]:
+                        if op == "wt":
+                            cn_fingerprint.append(wt)
 
-                        if self.chem_info is not None and wt != 0:
-                            # Compute additional chemistry-related features
-                            sum_wt += wt
-                            neigh_sites = [d["site"] for d in nndata.cn_nninfo[cn]]
+                            if self.chem_info is not None and wt != 0:
+                                # Compute additional chemistry-related features
+                                sum_wt += wt
+                                neigh_sites = [d["site"] for d in nndata.cn_nninfo[cn]]
 
-                            for prop in self.chem_props:
-                                # get the value for specie, if not fall back to
-                                # value defined for element
-                                prop_central = self.chem_info[prop].get(
-                                    specie_central,
-                                    self.chem_info[prop].get(elem_central),
-                                )
-
-                                for neigh in neigh_sites:
-                                    elem_neigh = neigh.specie.symbol
-                                    specie_neigh = str(neigh.specie)
-                                    prop_neigh = self.chem_info[prop].get(
-                                        specie_neigh,
-                                        self.chem_info[prop].get(elem_neigh),
+                                for prop in self.chem_props:
+                                    # get the value for specie, if not fall back to
+                                    # value defined for element
+                                    prop_central = self.chem_info[prop].get(
+                                        specie_central,
+                                        self.chem_info[prop].get(elem_central),
                                     )
 
-                                    prop_delta[prop] += wt * (prop_neigh - prop_central) / cn
+                                    for neigh in neigh_sites:
+                                        if neigh.is_ordered:
+                                            elem_neigh = neigh.specie.symbol
+                                            specie_neigh = str(neigh.specie)
+                                            prop_neigh = self.chem_info[prop].get(
+                                                specie_neigh,
+                                                self.chem_info[prop].get(elem_neigh),
+                                            )
 
-                    elif wt == 0:
-                        cn_fingerprint.append(wt)
-                    else:
-                        neigh_sites = [d["site"] for d in nndata.cn_nninfo[cn]]
-                        opval = op.get_order_parameters(
-                            [struct[idx]] + neigh_sites,
-                            0,
-                            indices_neighs=[i for i in range(1, len(neigh_sites) + 1)],
-                        )[0]
-                        opval = opval or 0  # handles None
-                        cn_fingerprint.append(wt * opval)
+                                        else:
+                                            total_occ = sum(neigh.species.values())
+                                            prop_neigh = sum(
+                                                self.chem_info[prop].get(str(sp),
+                                                                         self.chem_info[prop].get(sp.symbol)) * (
+                                                            amt / total_occ)
+                                                for sp, amt in neigh.species.items()
+                                            )
+                                        prop_delta[prop] += wt * (prop_neigh - prop_central) / cn
+
+                        elif wt == 0:
+                            cn_fingerprint.append(wt)
+                        else:
+                            neigh_sites = [d["site"] for d in nndata.cn_nninfo[cn]]
+                            opval = op.get_order_parameters(
+                                [struct[idx]] + neigh_sites,
+                                0,
+                                indices_neighs=[i for i in range(1, len(neigh_sites) + 1)],
+                            )[0]
+                            opval = opval or 0  # handles None
+                            cn_fingerprint.append(wt * opval)
+
+        else:
+            for k in range(max_cn):
+                cn = k + 1
+                wt = nndata.cn_weights.get(cn, 0)
+                if cn in self.ops:
+                    for op in self.ops[cn]:
+                        if op == "wt":
+                            cn_fingerprint.append(wt)
+
+                            if self.chem_info is not None and wt != 0:
+                                # Compute additional chemistry-related features
+                                sum_wt += wt
+                                neigh_sites = [d["site"] for d in nndata.cn_nninfo[cn]]
+
+                                for prop in self.chem_props:
+                                    # get the value for specie, if not fall back to
+                                    # value defined for element
+
+                                    total_occ = sum(struct.sites[idx].species.values())
+                                    prop_central = sum(
+                                        self.chem_info[prop].get(str(sp),
+                                                                 self.chem_info[prop].get(sp.symbol)) * (
+                                                amt / total_occ)
+                                        for sp, amt in struct.sites[idx].species.items()
+                                    )
+
+                                    for neigh in neigh_sites:
+                                        if neigh.is_ordered:
+                                            elem_neigh = neigh.specie.symbol
+                                            specie_neigh = str(neigh.specie)
+                                            prop_neigh = self.chem_info[prop].get(
+                                                specie_neigh,
+                                                self.chem_info[prop].get(elem_neigh),
+                                            )
+
+                                        else:
+                                            total_occ = sum(neigh.species.values())
+                                            prop_neigh = sum(
+                                                self.chem_info[prop].get(str(sp),
+                                                                         self.chem_info[prop].get(sp.symbol)) * (
+                                                            amt / total_occ)
+                                                for sp, amt in neigh.species.items()
+                                            )
+                                        prop_delta[prop] += wt * (prop_neigh - prop_central) / cn
+
+                        elif wt == 0:
+                            cn_fingerprint.append(wt)
+                        else:
+                            neigh_sites = [d["site"] for d in nndata.cn_nninfo[cn]]
+                            opval = op.get_order_parameters(
+                                [struct[idx]] + neigh_sites,
+                                0,
+                                indices_neighs=[i for i in range(1, len(neigh_sites) + 1)],
+                            )[0]
+                            opval = opval or 0  # handles None
+                            cn_fingerprint.append(wt * opval)
+
         chem_fingerprint = []
-
         if self.chem_info is not None:
             for val in prop_delta.values():
                 chem_fingerprint.append(val / sum_wt)
