@@ -574,7 +574,10 @@ class CrystalNNFingerprint(BaseFeaturizer):
         chem_fingerprint = []
         if self.chem_info is not None:
             for val in prop_delta.values():
-                chem_fingerprint.append(val / sum_wt)
+                try:
+                    chem_fingerprint.append(val / sum_wt)
+                except Exception as e:
+                    chem_fingerprint.append(0)
 
         return cn_fingerprint + chem_fingerprint
 
